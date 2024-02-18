@@ -1,0 +1,199 @@
+'use client'; // to make interactive page
+import axios from "axios"
+import {useState, useCallback, useEffect} from "react";
+import {FieldValues ,SubmitHandler, useForm} from "react-hook-form";
+import Input from "@/app/components/inputs/Input";
+import Button from "@/app/components/Button";
+import AuthSocialButton from "./AuthSocialButton"
+import {BsGithub , BsGoogle} from "react-icons/bs";
+
+import {toast} from "react-hot-toast";
+import {signIn , useSession} from "next-auth/react";
+import {useRouter} from "next/navigation"
+
+type Variant = 'LOGIN' | 'REGISTER';
+
+const AuthForm = () => {
+    const session = useSession();
+    const router = useRouter();
+    const [varient , setVarient] = useState<Variant>('LOGIN');
+     const [isLoading , setIsLoading] =useState(false)
+
+     useEffect(() => {
+        if (session?.status === 'authenticated') {
+            router.push("/users");
+        }
+     } , [session?.status , router])
+      
+     // change variant depend on the current state
+     const toggleVariant = useCallback(() =>{
+     if(varient === "LOGIN"){
+        setVarient('REGISTER');
+     }else{
+        setVarient('LOGIN');
+     }
+     } , [varient]);
+    
+     // 타입 설정 default로 있을 수 있는 것 
+     const {
+        register, 
+        handleSubmit,
+        formState :{
+            errors
+        }
+     } = useForm<FieldValues>({
+        defaultValues : {
+            name : '',
+            email : '',
+            password : ''
+        }
+     })
+
+     //로딩하는 상황 
+     const onSubmit : SubmitHandler<FieldValues> = 
+     (data) => {setIsLoading(true);
+    if(varient === 'REGISTER') {
+        //Axios Register
+        axios.post('/api/register' , data)
+        .then(() => signIn('credentials', data))
+        .catch(() => toast.error('Something went wrong')) 
+        .finally(() => setIsLoading(false))
+        
+    }
+
+    if(varient === 'LOGIN'){
+        //NextAuth SignIn
+        // provider가 credential이므로 변수는 credentials
+        signIn('credentials' , {
+            ...data,
+            redirect : false 
+        })
+        .then((callback) => {
+            if(callback?.error){
+                toast.error('Invalid credentials');
+            }
+
+            if(callback?.ok && !callback?.error){
+                toast.success('login!')
+                router.push("/users");
+            }
+        })
+        .finally(() => setIsLoading(false));
+    }
+    
+    }
+
+    const socialAction = (action : string) =>{
+        setIsLoading(true)
+       // nextAuth social signIn
+       signIn(action , {redirect : false})
+       .then((callback) => {
+        if(callback?.error){
+        toast.error('Invalid Credentials')}
+
+        if(callback?.ok && !callback?.error){
+            toast.success('Logged In!')
+        }
+       }).finally(() => setIsLoading(false));
+    }
+
+    return(
+        <div className="
+        mt-8
+        sm:mx-auto
+        sm:w-full
+        sm:max-w-md
+        ">
+        <div 
+        className="
+        bg-white
+        px-4
+        py-8
+        shadow
+        sm:rounded-lg
+        sm:px-10">
+            <form
+            className="space-y-6"
+            onSubmit={handleSubmit(onSubmit)}>
+        {varient === "REGISTER" && (
+           <Input 
+           id="name"
+            label ="Name" 
+            register ={register}
+            errors={errors}
+            disabled={isLoading}
+            />
+        )}
+        <Input
+        id="email"
+        label="Email address"
+        type="email"
+        register={register}
+        errors={errors}
+        disabled={isLoading}/>
+         <Input
+        id="password"
+        label="Password"
+        type="password"
+        register={register}
+        errors={errors}
+        disabled={isLoading}/>
+        <div>
+            <Button
+            disabled={isLoading}
+            fullWidth
+            type="submit">{
+            // varient가 LOGIN이면 등록 버튼 Signin 표시 
+            varient === 'LOGIN' ? 'Sign in' : 'Register'}</Button>
+        </div>
+         
+            </form>
+
+        <div className ="mt-6">
+        <div className="relative">
+            <div
+            className="
+            absolute
+            inset-0
+            flex
+            items-center">
+      <div className="w-full border-t border-gray-300"/>
+     </div>
+    <div className="relative flex justify-center text-sm">
+    <span className="bg-white 
+    px-2
+    text-gray-500">
+      Or continue with
+    </span>
+    </div>
+        </div>
+    <div className="mt-6 flex gap-2">
+        <AuthSocialButton
+        icon ={BsGithub}
+        onClick = {() => socialAction('github')}/>
+         <AuthSocialButton
+        icon ={BsGoogle}
+        onClick = {() => socialAction('google')}/>  
+    </div>
+        </div>
+         <div className="
+         flex
+         gap-2
+         justify-center
+         text-sm
+         mt-6
+         px-2
+         text-gray-500" >
+            {varient === 'LOGIN' ? 'New to Messenger?' : 'Already have Account'}
+            <div onClick ={toggleVariant}
+            className="underline cursor-pointer">
+                {varient === 'LOGIN' ? 'Create an account' : 'login'}
+            </div>
+            </div>  
+          
+        </div>
+        </div>
+    )
+}
+
+export default AuthForm;
